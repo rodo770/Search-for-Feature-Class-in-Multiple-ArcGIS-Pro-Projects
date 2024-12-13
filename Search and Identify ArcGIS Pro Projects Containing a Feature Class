@@ -1,0 +1,75 @@
+import arcpy
+import os
+
+# Specify the directory containing the .aprx files (ArcGIS Pro projects)
+projects_directory = r"ADD DIRECTORY HERE"
+
+# Specify the feature class to search for (provide the full path to the feature class)
+feature_class_to_search = r"ADD FEATURE CLASS PATH HERE"
+
+# List to store projects containing the specified feature class
+projects_with_feature_class = []
+
+# Get a list of all directories in the projects_directory
+all_dirs = [os.path.join(root, dir) for root, dirs, files in os.walk(projects_directory) for dir in dirs]
+
+# Total number of directories to be scanned
+total_dirs = len(all_dirs)
+
+# Loop through all the .aprx files in the directory and subdirectories
+scanned_dirs = 0  # Counter for scanned directories
+
+for root, dirs, files in os.walk(projects_directory):
+    # Increment the scanned directories count only if the directory has files
+    if root in all_dirs:
+        scanned_dirs += 1
+    
+    # Calculate the percentage and print the progress
+    percentage = (scanned_dirs / total_dirs) * 100 if total_dirs > 0 else 0
+    print(f"Scanning folder: {root} - {percentage:.2f}% completed.")
+    
+    # Flag to track if any project has been found in this folder
+    folder_found = False
+    
+    for file in files:
+        if file.endswith(".aprx"):
+            aprx_path = os.path.join(root, file)
+            try:
+                # Open the ArcGIS Pro project (.aprx file)
+                aprx = arcpy.mp.ArcGISProject(aprx_path)
+
+                # Flag to track if feature class is found
+                feature_class_found = False
+
+                # Loop through all maps in the project
+                for map in aprx.listMaps():
+                    # Loop through all layers in each map
+                    for layer in map.listLayers():
+                        # Check if the layer is a feature layer and matches the feature class
+                        if layer.isFeatureLayer and layer.dataSource == feature_class_to_search:
+                            feature_class_found = True
+                            break
+                    
+                    # If found, no need to check other layers/maps
+                    if feature_class_found:
+                        break
+                
+                # If the feature class is found, add the project to the list
+                if feature_class_found:
+                    projects_with_feature_class.append(aprx_path)
+                    folder_found = True
+
+            except Exception as e:
+                print(f"Error processing {aprx_path}: {e}")
+    
+    # After scanning each folder, if any projects were found, display how many were found
+    if folder_found:
+        print(f"FOUND {len(projects_with_feature_class)} PROJECTS WITH THE SPECIFIED FEATURE CLASS.")
+            
+# Output the results
+if projects_with_feature_class:
+    print("\nThe following projects contain the specified feature class:")
+    for project in projects_with_feature_class:
+        print(project)
+else:
+    print("\nNo projects contain the specified feature class.")
